@@ -20,7 +20,11 @@ def get_current_temperature(api_key, city):
         data = response.json()
         return data['main']['temp']
     else:
-        st.error(f"Ошибка при запросе к API: {response.status_code} - {response.json().get('message', 'Неизвестная ошибка')}")
+        error_message = response.json().get('message', 'Неизвестная ошибка')
+        if response.status_code == 401:
+            st.error(f"Ошибка: {error_message}. Проверьте API ключ.")
+        else:
+            st.error(f"Ошибка при запросе к API: {response.status_code} - {error_message}")
         return None
 
 def main():
@@ -53,8 +57,6 @@ def main():
                 st.write("Текущая температура является аномальной.")
             else:
                 st.write("Текущая температура в пределах нормы.")
-        else:
-            st.write("Не удалось получить текущую температуру. Проверьте API ключ и название города.")
     else:
         st.write("Введите API ключ для получения текущей температуры.")
 

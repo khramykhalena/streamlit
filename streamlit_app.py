@@ -3,110 +3,84 @@ import pandas as pd
 import numpy as np
 import requests
 import matplotlib.pyplot as plt
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import avg, stddev
-import asyncio
-import aiohttp
 
-def calculate_moving_average(df, window=30):
-    df['30_day_avg'] = df['temperature'].rolling(window=window).mean()
-    return df
+@st.cache_data
+def load_data():
+    data = pd.read_csv('temperature_data.csv')
+    data['timestamp'] = pd.to_datetime(data['timestamp'])
+    data['rolling_mean'] = data.groupby('city')['temperature'].transform(lambda x: x.rolling(window=30).mean())
+    data['rolling_std'] = data.groupby('city')['temperature'].transform(lambda x: x.rolling(window=30).std())
+    data['anomaly'] = (data['temperature'] < (data['rolling_mean'] - 2 * data['rolling_std'])) | (data['temperature'] > (data['rolling_mean'] + 2 * data['rolling_std']))
+    return data
 
-def calculate_seasonal_stats(df):
-    seasonal_stats = df.groupby(['city', 'season']).agg({'temperature': ['mean', 'std']})
-    seasonal_stats.columns = ['_'.join(col).strip() for col in seasonal_stats.columns.values]
-    return seasonal_stats
-
-def detect_anomalies(df, seasonal_stats):
-    df = df.merge(seasonal_stats, on=['city', 'season'])
-    df['anomaly'] = (df['temperature'] < (df['temperature_mean'] - 2 * df['temperature_std'])) | (df['temperature'] > (df['temperature_mean'] + 2 * df['temperature_std']))
-    return df
-
-def get_current_temp_sync(api_key, city):
+def get_current_temperature(api_key, city):
     url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
         return data['main']['temp']
     else:
+        error_message = response.json().get('message', 'Неизвестная ошибка')
+        if response.status_code == 401:
+            st.error(f"Ошибка: {error_message}. Проверьте API ключ.")
+        else:
+            st.error(f"Ошибка при запросе к API: {response.status_code} - {error_message}")
         return None
-
-async def get_current_temp_async(api_key, city):
-    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status == 200:
-                data = await response.json()
-                return data['main']['temp']
-            else:
-                return None
 
 def main():
     st.title("Анализ температурных данных")
 
-    uploaded_file = st.file_uploader("Загрузите файл с историческими данными", type=["csv"])
+    data = load_data()
+
+    uploaded_file = st.file_uploader("Загрузите файл с историческими данными", type="csv")
     if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-        st.write("Загруженные данные:", df.columns)
+        data = pd.read_csv(uploaded_file)
+        data['timestamp'] = pd.to_datetime(data['timestamp'])
+        data['rolling_mean'] = data.groupby('city')['temperature'].transform(lambda x: x.rolling(window=30).mean())
+        data['rolling_std'] = data.groupby('city')['temperature'].transform(lambda x: x.rolling(window=30).std())
+        data['anomaly'] = (data['temperature'] < (data['rolling_mean'] - 2 * data['rolling_std'])) | (data['temperature'] > (data['rolling_mean'] + 2 * data['rolling_std']))
 
-        if 'timestamp' in df.columns and 'temperature' in df.columns and 'city' in df.columns and 'season' in df.columns:
-            df = df.rename(columns={'timestamp': 'date'})
-            df['date'] = pd.to_datetime(df['date'])
+    city = st.selectbox("Выберите город", data['city'].unique())
 
-            df = calculate_moving_average(df)
-            seasonal_stats = calculate_seasonal_stats(df)
-            df = detect_anomalies(df, seasonal_stats)
+    api_key = st.text_input("Введите API ключ OpenWeatherMap")
 
-            st.write("Описательная статистика по историческим данным:")
-            st.write(df.describe())
+    if api_key:
+        current_temp = get_current_temperature(api_key, city)
+        if current_temp is not None:
+            st.write(f"Текущая температура в {city}: {current_temp}°C")
 
-            st.write("Временной ряд температур с выделением аномалий:")
-            fig, ax = plt.subplots()
-            ax.plot(df['date'], df['temperature'], label='Температура')
-            ax.scatter(df[df['anomaly']]['date'], df[df['anomaly']]['temperature'], color='red', label='Аномалии')
-            ax.legend()
-            st.pyplot(fig)
+            season_data = data[(data['city'] == city) & (data['season'] == data[data['city'] == city]['season'].iloc[-1])]
+            mean_temp = season_data['temperature'].mean()
+            std_temp = season_data['temperature'].std()
 
-            st.write("Сезонные профили с указанием среднего и стандартного отклонения:")
-            st.write(seasonal_stats)
-
-            city = st.selectbox("Выберите город", df['city'].unique())
-            api_key = st.text_input("Введите API-ключ OpenWeatherMap")
-
-            if api_key:
-                current_temp_sync = get_current_temp_sync(api_key, city)
-                if current_temp_sync is not None:
-                    st.write(f"Текущая температура в {city} (синхронно): {current_temp_sync}°C")
-
-                    season = df[df['city'] == city]['season'].mode()[0]
-                    mean_temp = seasonal_stats.loc[(city, season), 'temperature_mean']
-                    std_temp = seasonal_stats.loc[(city, season), 'temperature_std']
-                    is_normal = (current_temp_sync >= (mean_temp - 2 * std_temp)) and (current_temp_sync <= (mean_temp + 2 * std_temp))
-
-                    if is_normal:
-                        st.write("Текущая температура находится в пределах нормы.")
-                    else:
-                        st.write("Текущая температура аномальна.")
-                else:
-                    st.error("Не удалось получить данные о температуре. Проверьте API-ключ и название города.")
-
-                if st.button("Получить температуру асинхронно"):
-                    current_temp_async = asyncio.run(get_current_temp_async(api_key, city))
-                    if current_temp_async is not None:
-                        st.write(f"Текущая температура в {city} (асинхронно): {current_temp_async}°C")
-
-                        is_normal_async = (current_temp_async >= (mean_temp - 2 * std_temp)) and (current_temp_async <= (mean_temp + 2 * std_temp))
-
-                        if is_normal_async:
-                            st.write("Текущая температура находится в пределах нормы.")
-                        else:
-                            st.write("Текущая температура аномальна.")
-                    else:
-                        st.error("Не удалось получить данные о температуре. Проверьте API-ключ и название города.")
+            if (current_temp < mean_temp - 2 * std_temp) or (current_temp > mean_temp + 2 * std_temp):
+                st.write("Текущая температура является аномальной.")
             else:
-                st.warning("Введите API-ключ для получения текущей температуры.")
+                st.write("Текущая температура в пределах нормы.")
+    else:
+        st.write("Введите API ключ для получения текущей температуры.")
+
+    if st.checkbox("Показать временной ряд температур"):
+        city_data = data[data['city'] == city]
+        plt.figure(figsize=(10, 5))
+        plt.plot(city_data['timestamp'], city_data['temperature'], label='Температура')
+        if 'rolling_mean' in city_data.columns:
+            plt.plot(city_data['timestamp'], city_data['rolling_mean'], label='Скользящее среднее')
         else:
-            st.error("Файл не содержит необходимых столбцов 'timestamp', 'temperature', 'city' или 'season'.")
+            st.error("Столбец 'rolling_mean' отсутствует в данных.")
+        if 'anomaly' in city_data.columns:
+            plt.scatter(city_data[city_data['anomaly']]['timestamp'], city_data[city_data['anomaly']]['temperature'], color='red', label='Аномалии')
+        plt.legend()
+        st.pyplot(plt)
+
+    if st.checkbox("Показать сезонные профили"):
+        season_data = data[data['city'] == city]
+        season_mean = season_data.groupby('season')['temperature'].mean()
+        season_std = season_data.groupby('season')['temperature'].std()
+        plt.figure(figsize=(10, 5))
+        plt.bar(season_mean.index, season_mean, yerr=season_std, capsize=5)
+        plt.title(f"Сезонные профили температуры в {city}")
+        st.pyplot(plt)
 
 if __name__ == "__main__":
     main()

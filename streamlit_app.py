@@ -55,13 +55,13 @@ def main():
     if st.checkbox("Показать временной ряд температур"):
         cd = d[d['city'] == c]
         plt.figure(figsize=(10, 5))
-        plt.plot(cd['ts'], cd['temperature'], label='Температура')
+        plt.plot(cd['ts'], cd['temperature'], label='Температура', color='blue')
         if 'rm' in cd.columns:
-            plt.plot(cd['ts'], cd['rm'], label='Скользящее среднее')
+            plt.plot(cd['ts'], cd['rm'], label='Скользящее среднее', color='green') 
         else:
             st.error("Столбец 'rm' отсутствует в данных.")
         if 'a' in cd.columns:
-            plt.scatter(cd[cd['a']]['ts'], cd[cd['a']]['temperature'], color='red', label='Аномалии')
+            plt.scatter(cd[cd['a']]['ts'], cd[cd['a']]['temperature'], color='orange', label='Аномалии')
         plt.legend()
         st.pyplot(plt)
     if st.checkbox("Показать сезонные профили"):
@@ -69,8 +69,8 @@ def main():
         m = sd.groupby('season')['temperature'].mean()
         s_std = sd.groupby('season')['temperature'].std()
         plt.figure(figsize=(10, 5))
-        plt.plot(m.index, m, marker='o', label='Средняя температура')
-        plt.fill_between(m.index, m - 2 * s_std, m + 2 * s_std, alpha=0.2, label='±2σ')
+        plt.plot(m.index, m, marker='o', label='Средняя температура', color='purple')
+        plt.fill_between(m.index, m - 2 * s_std, m + 2 * s_std, alpha=0.2, label='±2σ', color='lightblue') 
         plt.title(f"Сезонные профили температуры в {c}")
         plt.xlabel("Сезон")
         plt.ylabel("Температура (°C)")

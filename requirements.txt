@@ -4,6 +4,5 @@ numpy
 request
 aiohttp
 asyncio
-pyspark
 scikit-learn
 plotly

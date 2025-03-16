@@ -3,10 +3,17 @@ import pandas as pd
 import numpy as np
 import requests
 import matplotlib.pyplot as plt
+from multiprocessing import Pool
+import asyncio
+import aiohttp
 
 @st.cache_data
 def load_data():
     data = pd.read_csv('temperature_data.csv')
+    data['timestamp'] = pd.to_datetime(data['timestamp'])
+    data['rolling_mean'] = data.groupby('city')['temperature'].transform(lambda x: x.rolling(window=30).mean())
+    data['rolling_std'] = data.groupby('city')['temperature'].transform(lambda x: x.rolling(window=30).std())
+    data['anomaly'] = (data['temperature'] < (data['rolling_mean'] - 2 * data['rolling_std'])) | (data['temperature'] > (data['rolling_mean'] + 2 * data['rolling_std']))
     return data
 
 def get_current_temperature(api_key, city):
@@ -17,6 +24,23 @@ def get_current_temperature(api_key, city):
         return data['main']['temp']
     else:
         return None
+
+async def get_current_temperature_async(api_key, city):
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data['main']['temp']
+            else:
+                return None
+
+def analyze_city(data):
+    city_data = data[data['city'] == city]
+    city_data['rolling_mean'] = city_data['temperature'].rolling(window=30).mean()
+    city_data['rolling_std'] = city_data['temperature'].rolling(window=30).std()
+    city_data['anomaly'] = (city_data['temperature'] < (city_data['rolling_mean'] - 2 * city_data['rolling_std'])) | (city_data['temperature'] > (city_data['rolling_mean'] + 2 * city_data['rolling_std']))
+    return city_data
 
 def main():
     st.title("Анализ температурных данных")
@@ -32,20 +56,37 @@ def main():
     api_key = st.text_input("Введите API ключ OpenWeatherMap")
 
     if api_key:
-        current_temp = get_current_temperature(api_key, city)
-        if current_temp is not None:
-            st.write(f"Текущая температура в {city}: {current_temp}°C")
+        if st.button("Получить текущую температуру (синхронно)"):
+            current_temp = get_current_temperature(api_key, city)
+            if current_temp is not None:
+                st.write(f"Текущая температура в {city}: {current_temp}°C")
 
-            season_data = data[(data['city'] == city) & (data['season'] == data[data['city'] == city]['season'].iloc[-1])]
-            mean_temp = season_data['temperature'].mean()
-            std_temp = season_data['temperature'].std()
+                season_data = data[(data['city'] == city) & (data['season'] == data[data['city'] == city]['season'].iloc[-1])]
+                mean_temp = season_data['temperature'].mean()
+                std_temp = season_data['temperature'].std()
 
-            if (current_temp < mean_temp - 2 * std_temp) or (current_temp > mean_temp + 2 * std_temp):
-                st.write("Текущая температура является аномальной.")
+                if (current_temp < mean_temp - 2 * std_temp) or (current_temp > mean_temp + 2 * std_temp):
+                    st.write("Текущая температура является аномальной.")
+                else:
+                    st.write("Текущая температура в пределах нормы.")
             else:
-                st.write("Текущая температура в пределах нормы.")
-        else:
-            st.write("Не удалось получить текущую температуру. Проверьте API ключ и название города.")
+                st.write("Не удалось получить текущую температуру. Проверьте API ключ и название города.")
+
+        if st.button("Получить текущую температуру (асинхронно)"):
+            current_temp = asyncio.run(get_current_temperature_async(api_key, city))
+            if current_temp is not None:
+                st.write(f"Текущая температура в {city}: {current_temp}°C")
+
+                season_data = data[(data['city'] == city) & (data['season'] == data[data['city'] == city]['season'].iloc[-1])]
+                mean_temp = season_data['temperature'].mean()
+                std_temp = season_data['temperature'].std()
+
+                if (current_temp < mean_temp - 2 * std_temp) or (current_temp > mean_temp + 2 * std_temp):
+                    st.write("Текущая температура является аномальной.")
+                else:
+                    st.write("Текущая температура в пределах нормы.")
+            else:
+                st.write("Не удалось получить текущую температуру. Проверьте API ключ и название города.")
     else:
         st.write("Введите API ключ для получения текущей температуры.")
 

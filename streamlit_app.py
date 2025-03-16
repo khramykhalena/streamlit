@@ -58,16 +58,13 @@ def main():
     st.title("Анализ температурных данных")
     df = load()
     df = calculate_stats(df)
-
     f = st.file_uploader("Загрузите файл с данными", type="csv")
     if f is not None:
         df = pd.read_csv(f)
         df['ts'] = pd.to_datetime(df['timestamp'])
         df = calculate_stats(df)
-
     c = st.selectbox("Выберите город", df['city'].unique())
     k = st.text_input("Введите API ключ OpenWeatherMap")
-
     if k:
         if st.button("Получить температуру синхронно"):
             t = get_temp_sync(k, c)
@@ -80,7 +77,6 @@ def main():
                     st.write("Текущая температура является аномальной.")
                 else:
                     st.write("Текущая температура в пределах нормы.")
-
         if st.button("Получить температуру асинхронно"):
             t = asyncio.run(get_temp_async(k, c))
             if t is not None:
@@ -94,34 +90,27 @@ def main():
                     st.write("Текущая температура в пределах нормы.")
     else:
         st.write("Введите API ключ для получения текущей температуры.")
-
     if st.checkbox("Показать описательную статистику"):
         st.write(df[df['city'] == c]['temperature'].describe())
-
     if st.checkbox("Показать временной ряд температур"):
         cdf = df[df['city'] == c]
         fig = px.line(cdf, x='ts', y='temperature', title=f"Температура в {c}", labels={'ts': 'Дата', 'temperature': 'Температура (°C)'})
         fig.add_scatter(x=cdf[cdf['a']]['ts'], y=cdf[cdf['a']]['temperature'], mode='markers', name='Аномалии', marker=dict(color='red'))
         st.plotly_chart(fig)
-
     if st.checkbox("Показать сезонные профили"):
         sdf = df[df['city'] == c]
         m = sdf.groupby('season')['temperature'].mean()
         s_std = sdf.groupby('season')['temperature'].std()
-        
         season_data = pd.DataFrame({
             'Сезон': m.index,
             'Средняя температура': m.values,
             'Стандартное отклонение': s_std.values
         })
-        
         st.write("Сезонные профили температуры:")
         st.dataframe(season_data)
-
         fig = px.line(season_data, x='Сезон', y='Средняя температура', error_y='Стандартное отклонение', 
                       title=f"Сезонные профили температуры в {c}", labels={'Сезон': 'Сезон', 'Средняя температура': 'Температура (°C)'})
         st.plotly_chart(fig)
-
     if st.checkbox("Показать долгосрочные тренды"):
         long_term_trend(df, c)
 

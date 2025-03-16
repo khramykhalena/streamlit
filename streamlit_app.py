@@ -50,7 +50,7 @@ def long_term_trend(df, city):
     y = cdf['temperature'].values
     model = LinearRegression().fit(X, y)
     trend = model.predict(X)
-    fig = px.line(cdf, x='ts', y='temperature', title=f"Тренд температуры в {city}")
+    fig = px.line(cdf, x='ts', y='temperature', title=f"Тренд температуры в {city}", labels={'ts': 'Дата', 'temperature': 'Температура (°C)'})
     fig.add_scatter(x=cdf['ts'], y=trend, mode='lines', name='Тренд', line=dict(color='red'))
     st.plotly_chart(fig)
 
@@ -100,7 +100,7 @@ def main():
 
     if st.checkbox("Показать временной ряд температур"):
         cdf = df[df['city'] == c]
-        fig = px.line(cdf, x='ts', y='temperature', title=f"Температура в {c}")
+        fig = px.line(cdf, x='ts', y='temperature', title=f"Температура в {c}", labels={'ts': 'Дата', 'temperature': 'Температура (°C)'})
         fig.add_scatter(x=cdf[cdf['a']]['ts'], y=cdf[cdf['a']]['temperature'], mode='markers', name='Аномалии', marker=dict(color='red'))
         st.plotly_chart(fig)
 
@@ -119,7 +119,7 @@ def main():
         st.dataframe(season_data)
 
         fig = px.line(season_data, x='Сезон', y='Средняя температура', error_y='Стандартное отклонение', 
-                      title=f"Сезонные профили температуры в {c}")
+                      title=f"Сезонные профили температуры в {c}", labels={'Сезон': 'Сезон', 'Средняя температура': 'Температура (°C)'})
         st.plotly_chart(fig)
 
     if st.checkbox("Показать долгосрочные тренды"):

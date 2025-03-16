@@ -35,47 +35,50 @@ def main():
         df = pd.read_csv(uploaded_file)
         st.write("Загруженные данные:", df.columns)
 
-        if 'date' in df.columns and 'temperature' in df.columns and 'city' in df.columns and 'season' in df.columns:
-            df = calculate_moving_average(df)
-            seasonal_stats = calculate_seasonal_stats(df)
-            df = detect_anomalies(df, seasonal_stats)
+        required_columns = {'date': None, 'temperature': None, 'city': None, 'season': None}
+        for col in required_columns:
+            if col not in df.columns:
+                st.error(f"Файл не содержит необходимого столбца: '{col}'")
+                return
 
-            st.write("Описательная статистика по историческим данным:")
-            st.write(df.describe())
+        df = calculate_moving_average(df)
+        seasonal_stats = calculate_seasonal_stats(df)
+        df = detect_anomalies(df, seasonal_stats)
 
-            st.write("Временной ряд температур с выделением аномалий:")
-            fig, ax = plt.subplots()
-            ax.plot(df['date'], df['temperature'], label='Температура')
-            ax.scatter(df[df['anomaly']]['date'], df[df['anomaly']]['temperature'], color='red', label='Аномалии')
-            ax.legend()
-            st.pyplot(fig)
+        st.write("Описательная статистика по историческим данным:")
+        st.write(df.describe())
 
-            st.write("Сезонные профили с указанием среднего и стандартного отклонения:")
-            st.write(seasonal_stats)
+        st.write("Временной ряд температур с выделением аномалий:")
+        fig, ax = plt.subplots()
+        ax.plot(df['date'], df['temperature'], label='Температура')
+        ax.scatter(df[df['anomaly']]['date'], df[df['anomaly']]['temperature'], color='red', label='Аномалии')
+        ax.legend()
+        st.pyplot(fig)
 
-            city = st.selectbox("Выберите город", df['city'].unique())
-            api_key = st.text_input("Введите API-ключ OpenWeatherMap")
+        st.write("Сезонные профили с указанием среднего и стандартного отклонения:")
+        st.write(seasonal_stats)
 
-            if api_key:
-                current_temp = get_current_temp(api_key, city)
-                if current_temp is not None:
-                    st.write(f"Текущая температура в {city}: {current_temp}°C")
+        city = st.selectbox("Выберите город", df['city'].unique())
+        api_key = st.text_input("Введите API-ключ OpenWeatherMap")
 
-                    season = df[df['city'] == city]['season'].mode()[0]
-                    mean_temp = seasonal_stats.loc[(city, season), 'temperature_mean']
-                    std_temp = seasonal_stats.loc[(city, season), 'temperature_std']
-                    is_normal = (current_temp >= (mean_temp - 2 * std_temp)) and (current_temp <= (mean_temp + 2 * std_temp))
+        if api_key:
+            current_temp = get_current_temp(api_key, city)
+            if current_temp is not None:
+                st.write(f"Текущая температура в {city}: {current_temp}°C")
 
-                    if is_normal:
-                        st.write("Текущая температура находится в пределах нормы.")
-                    else:
-                        st.write("Текущая температура аномальна.")
+                season = df[df['city'] == city]['season'].mode()[0]
+                mean_temp = seasonal_stats.loc[(city, season), 'temperature_mean']
+                std_temp = seasonal_stats.loc[(city, season), 'temperature_std']
+                is_normal = (current_temp >= (mean_temp - 2 * std_temp)) and (current_temp <= (mean_temp + 2 * std_temp))
+
+                if is_normal:
+                    st.write("Текущая температура находится в пределах нормы.")
                 else:
-                    st.error("Не удалось получить данные о температуре. Проверьте API-ключ и название города.")
+                    st.write("Текущая температура аномальна.")
             else:
-                st.warning("Введите API-ключ для получения текущей температуры.")
+                st.error("Не удалось получить данные о температуре. Проверьте API-ключ и название города.")
         else:
-            st.error("Файл не содержит необходимых столбцов 'date', 'temperature', 'city' или 'season'.")
+            st.warning("Введите API-ключ для получения текущей температуры.")
 
 if __name__ == "__main__":
     main()

@@ -55,7 +55,7 @@ def main():
     if st.checkbox("Показать временной ряд температур"):
         cd = d[d['city'] == c]
         plt.figure(figsize=(10, 5))
-        plt.plot(cd['ts'], cd['temperature'], label='Температура', color='blue')
+        plt.plot(cd['ts'], cd['temperature'], label='Температура', color='lightblue')
         if 'rm' in cd.columns:
             plt.plot(cd['ts'], cd['rm'], label='Скользящее среднее', color='green') 
         else:

@@ -77,9 +77,14 @@ def main():
         season_data = data[data['city'] == city]
         season_mean = season_data.groupby('season')['temperature'].mean()
         season_std = season_data.groupby('season')['temperature'].std()
+        
         plt.figure(figsize=(10, 5))
-        plt.bar(season_mean.index, season_mean, yerr=season_std, capsize=5)
+        plt.plot(season_mean.index, season_mean, marker='o', label='Средняя температура')
+        plt.fill_between(season_mean.index, season_mean - 2 * season_std, season_mean + 2 * season_std, alpha=0.2, label='±2σ')
         plt.title(f"Сезонные профили температуры в {city}")
+        plt.xlabel("Сезон")
+        plt.ylabel("Температура (°C)")
+        plt.legend()
         st.pyplot(plt)
 
 if __name__ == "__main__":

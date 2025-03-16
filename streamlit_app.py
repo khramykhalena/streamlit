@@ -4,9 +4,6 @@ import numpy as np
 import requests
 import aiohttp
 import asyncio
-from pyspark.sql import SparkSession
-from pyspark.sql.window import Window
-from pyspark.sql.functions import col, avg, stddev
 from sklearn.linear_model import LinearRegression
 import plotly.express as px
 
@@ -16,13 +13,11 @@ def load():
     df['ts'] = pd.to_datetime(df['timestamp'])
     return df
 
-def spark_stats(df):
-    spark = SparkSession.builder.appName("TempAnalysis").getOrCreate()
-    sdf = spark.createDataFrame(df)
-    win = Window.partitionBy("city").orderBy("ts").rowsBetween(-29, 0)
-    sdf = sdf.withColumn("rm", avg(col("temperature")).over(win))
-    sdf = sdf.withColumn("rs", stddev(col("temperature")).over(win))
-    return sdf.toPandas()
+def calculate_stats(df):
+    df['rm'] = df.groupby('city')['temperature'].transform(lambda x: x.rolling(window=30).mean())
+    df['rs'] = df.groupby('city')['temperature'].transform(lambda x: x.rolling(window=30).std())
+    df['a'] = (df['temperature'] < (df['rm'] - 2 * df['rs'])) | (df['temperature'] > (df['rm'] + 2 * df['rs']))
+    return df
 
 def get_temp_sync(k, c):
     url = f"http://api.openweathermap.org/data/2.5/weather?q={c}&appid={k}&units=metric"
@@ -62,15 +57,13 @@ def long_term_trend(df, city):
 def main():
     st.title("Анализ температурных данных")
     df = load()
-    df = spark_stats(df)
-    df['a'] = (df['temperature'] < (df['rm'] - 2 * df['rs'])) | (df['temperature'] > (df['rm'] + 2 * df['rs']))
+    df = calculate_stats(df)
 
     f = st.file_uploader("Загрузите файл с данными", type="csv")
     if f is not None:
         df = pd.read_csv(f)
         df['ts'] = pd.to_datetime(df['timestamp'])
-        df = spark_stats(df)
-        df['a'] = (df['temperature'] < (df['rm'] - 2 * df['rs'])) | (df['temperature'] > (df['rm'] + 2 * df['rs']))
+        df = calculate_stats(df)
 
     c = st.selectbox("Выберите город", df['city'].unique())
     k = st.text_input("Введите API ключ OpenWeatherMap")

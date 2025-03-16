@@ -108,7 +108,18 @@ def main():
         sdf = df[df['city'] == c]
         m = sdf.groupby('season')['temperature'].mean()
         s_std = sdf.groupby('season')['temperature'].std()
-        fig = px.bar(x=m.index, y=m, error_y=s_std, title=f"Сезонные профили температуры в {c}")
+        
+        season_data = pd.DataFrame({
+            'Сезон': m.index,
+            'Средняя температура': m.values,
+            'Стандартное отклонение': s_std.values
+        })
+        
+        st.write("Сезонные профили температуры:")
+        st.dataframe(season_data)
+
+        fig = px.line(season_data, x='Сезон', y='Средняя температура', error_y='Стандартное отклонение', 
+                      title=f"Сезонные профили температуры в {c}")
         st.plotly_chart(fig)
 
     if st.checkbox("Показать долгосрочные тренды"):

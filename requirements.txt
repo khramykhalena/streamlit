@@ -3,6 +3,3 @@ pandas
 numpy
 requests
 matplotlib
-aiohttp
-plotly
-pyspark

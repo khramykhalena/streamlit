@@ -20,6 +20,7 @@ def get_current_temperature(api_key, city):
         data = response.json()
         return data['main']['temp']
     else:
+        st.error(f"Ошибка при запросе к API: {response.status_code} - {response.json().get('message', 'Неизвестная ошибка')}")
         return None
 
 def main():

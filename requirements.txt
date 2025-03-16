@@ -1,5 +1,9 @@
 streamlit
 pandas
 numpy
-requests
-matplotlib
+request
+aiohttp
+asyncio
+pyspark
+scikit-learn
+plotly

@@ -5,4 +5,4 @@ requests
 matplotlib
 aiohttp
 plotly
-SparkSession
+pyspark

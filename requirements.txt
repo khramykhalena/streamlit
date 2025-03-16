@@ -3,3 +3,8 @@ pandas
 numpy
 requests
 matplotlib
+aiohttp
+asyncio
+pyspark
+scikit-learn
+plotly
